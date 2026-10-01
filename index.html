@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>
+            TODO
+        </title>
+        <style>
+            #data > table td,
+            #data > table th {
+                border: 1px solid black;
+                white-space: nowrap !important;
+            }
+            #data > table {
+                border-collapse: collapse;
+                margin-bottom: 25px; /* Чтобы таблицы красиво отделялись друг от друга */
+
+                overflow: scroll;
+                max-height: 30vh;
+                display: block;
+                border: 4px solid black;
+                width: 70vw;
+                border-radius: 10px;
+
+                padding: 3px;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="home">
+            <button onclick="showPage('create')">Create task</button>
+            <div id="data">
+                <h2>TODO</h2>
+                <table></table>
+                <h2>Doing</h2>
+                <table></table>
+                <h2>Done</h2>
+                <table></table>
+            </div>
+        </div>
+        <div id="more">
+            <a href="#" onclick="window.location.hash = '';window.location.reload();">Main</a>
+            <div id="more-dat">
+                <h2>Main info</h2>
+                <span id="-dat-name">name</span><br/>
+                <span id="-dat-groups">groups</span><br/>
+                <span id="-dat-time">time</span><br/>
+                <span id="-dat-made">made</span>
+
+                <h2>System info</h2>
+                <span id="dat-name">name</span><br/>
+                <span id="dat-groups">groups</span><br/>
+                <span id="dat-time">time</span><br/>
+
+                <span id="dat-hash">hash</span><br/>
+                <span id="dat-sys">task data</span><br/><br/>
+                <button id="dat-remove" onclick="remove(window.location.hash.substring(1))">Remove</button>
+                <button id="dat-doing" onclick="toDoing(window.location.hash.substring(1))">To "Doing" list</button>
+                <button id="dat-done" onclick="toDone(window.location.hash.substring(1))">To "Done" list</button>
+                <button id="dat-again" onclick="again(window.location.hash.substring(1))">Add to "TODO" list again</button>
+                <button id="dat-share" onclick="copy(shareLink(window.location.hash.substring(1)))">Copy share link</button>
+            </div>
+        </div>
+        <!-- <div id="create">
+            <h2>Create a task</h2>
+            <span>Name:</span><input id="task-name" placeholder="add new tasks on TODO site"/><br/>
+            <span>Groups:</span>
+        </div> -->
+        <script>
+            const log = (x,y=36) => Math.log(x) / Math.log(y);
+
+
+            const goodLocConfig = {
+                "dateStyle": "full"
+            };
+
+
+            const pages = {
+                home: document.getElementById('home'),
+                more: document.getElementById('more'),
+                create: document.getElementById('create')
+            };
+
+
+            /**
+             * @typedef {{years?:number,months?:number,weeks?:number,days?:number,hours?:number,minutes?:number,seconds?:number}} Time
+             */
+            /**
+             * @typedef {{made:string}} SystemTaskInfo
+             */
+            /**
+             * @typedef {{name: string, groups: string[], time: Time|null, hash: string, sys: SystemTaskInfo}} Task
+             */
+            /**
+             * @type {{todo: Task[], doing: Task[], done: Task[]}}
+             */
+            var data = {
+                todo: [],
+                doing: [],
+                done: []
+            };
+
+            showPage('home');
+
+            (function(){
+                if(getStorage()) {
+                    data = JSON.parse(getStorage());
+                    return;
+                }
+
+                data.todo.push({
+                    name: 'add new tasks on TODO site',
+                    groups: ['site'],
+                    time: null,
+                    hash: genHash(),
+                    sys: {
+                        made: new Date().toLocaleDateString(undefined,goodLocConfig)
+                    }
+                });
+
+                data.doing.push({
+                    name: 'use TODO site',
+                    groups: ['site'],
+                    time: null,
+                    hash: genHash(),
+                    sys: {
+                        made: new Date().toLocaleDateString(undefined,goodLocConfig)
+                    }
+                });
+                data.doing.push({
+                    name: 'use TODO site all week',
+                    groups: ['site'],
+                    time: {weeks:1},
+                    hash: genHash(),
+                    sys: {
+                        made: new Date().toLocaleDateString(undefined,goodLocConfig)
+                    }
+                });
+
+                data.done.push({
+                    name: 'open TODO site',
+                    groups: ['site'],
+                    time: null,
+                    hash: genHash(),
+                    sys: {
+                        made: new Date().toLocaleDateString(undefined,goodLocConfig)
+                    }
+                });
+
+                saveStorage();
+            })();
+
+            const dataEl = document.getElementById('data');
+
+            (function(){
+                if(window.location.hash==='#'||(!window.location.hash)) {
+                    showData();
+                    return;
+                }
+
+                
+                if(!window.location.hash.includes('.')) {
+                    const val = fromHash(window.location.hash.substring(1));
+                    
+                    document.getElementById('-dat-name').innerText = 'Name: "' + val.name + '"';
+                    document.getElementById('-dat-groups').innerText = 'Groups: ' + val.groups.join('; ');
+                    document.getElementById('-dat-time').innerText = 'Time: ' + parseTime(val.time).toLowerCase();
+                    document.getElementById('-dat-made').innerText = 'Made: ' + val.sys.made;
+
+                    document.getElementById('dat-name').innerText = 'Name: ' + JSON.stringify(val.name);
+                    document.getElementById('dat-groups').innerText = 'Groups: ' + JSON.stringify(val.groups);
+                    document.getElementById('dat-time').innerText = 'Time: ' + JSON.stringify(val.time);
+                    document.getElementById('dat-hash').innerText = 'Hash: "' + val.hash + '"';
+                    document.getElementById('dat-sys').innerText = 'Task data: ' + JSON.stringify(val);
+
+                    showPage('more');
+                    return;
+                }
+
+                if(window.location.hash[1] == '@') {
+                    const command = window.location.hash.substring(2,window.location.hash.indexOf('.'));
+                    const args = window.location.hash.substring(window.location.hash.indexOf('.') + 1).split('.');
+
+                    switch(command) {
+                        case 'import':
+                            const binString = atob(args[0]);
+                            const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0));
+                            const jsonStr = new TextDecoder().decode(bytes);
+                            const res = JSON.parse(jsonStr);
+                            data.todo.push(res.sys.made ? res : precreate(res));
+                            break;
+                    }
+                }
+
+                const val = fromHash(window.location.hash.substring(
+                    1,window.location.hash.indexOf('.')
+                ));
+                const method = window.location.hash.substring(
+                    window.location.hash.indexOf('.') + 1
+                );
+                const path = pathFromHash(window.location.hash.substring(
+                    1,window.location.hash.indexOf('.')
+                ));
+
+                switch(method) {
+                    case 'remove':
+                        data[path[0]].splice(path[1],1);
+                        console.log('remove');
+                        break;
+                    case 'doing':
+                        data[path[0]].splice(path[1],1);
+                        data.doing.push(val);
+                        console.log('doing');
+                        break;
+                    case 'done':
+                        data[path[0]].splice(path[1],1);
+                        data.done.push(val);
+                        console.log('done');
+                        break;
+                    case 'again':
+                        // data[path[0]].splice(path[1],1); // old version
+                        create(val);
+                        console.log('again');
+                        break;
+                }
+
+                window.location.hash = '';
+                saveStorage();
+                window.location.reload();
+            })();
+
+            function showData() {
+                const template =
+                    `
+                        <thead>
+                            <tr>
+                                <th>
+                                    Name
+                                </th>
+                                <th>
+                                    Group(s)
+                                </th>
+                                <th>
+                                    Time needed
+                                </th>
+                    `;
+                dataEl.children[1].innerHTML =
+                    template + `
+                                <th>
+                                    Doing button
+                                </th>
+                                <th>
+                                    Delete button
+                                </th>
+                                <th>
+                                    More info button
+                                </th>
+                            </tr>
+                        </thead>`;
+                dataEl.children[3].innerHTML =
+                    template + `
+                                <th>
+                                    Done button
+                                </th>
+                                <th>
+                                    Delete button
+                                </th>
+                                <th>
+                                    More info button
+                                </th>
+                            </tr>
+                        </thead>`;
+                dataEl.children[5].innerHTML =
+                    template + `
+                                <th>
+                                    Do again button
+                                </th>
+                                <th>
+                                    Delete button
+                                </th>
+                                <th>
+                                    More info button
+                                </th>
+                            </tr>
+                        </thead>`;
+
+                {
+                    const elRes = document.createElement('tbody');
+
+                    for(let v of data.todo) {
+                        var elem = document.createElement('tr');
+                        var preElem = [
+                            document.createElement('td'),
+                            document.createElement('td'),
+                            document.createElement('td'),
+
+                            document.createElement('td'),
+                            document.createElement('td'),
+                            document.createElement('td')
+                        ];
+                        preElem[0].innerText = v.name;
+                        preElem[1].innerText = v.groups.join('; ');
+
+                        preElem[2].innerText = parseTime(v.time);
+
+                        preElem[3].appendChild(document.createElement('button'));
+                        preElem[3].children[0].innerText = 'Doing';
+                        preElem[3].children[0].onclick = () => toDoing(v.hash);
+                        preElem[4].appendChild(document.createElement('button'));
+                        preElem[4].children[0].innerText = 'Delete';
+                        preElem[4].children[0].onclick = () => remove(v.hash);
+                        preElem[5].appendChild(document.createElement('button'));
+                        preElem[5].children[0].innerText = 'More info';
+                        preElem[5].children[0].onclick = () => more(v.hash);
+
+                        elem.append(...preElem);
+
+                        elRes.append(elem);
+                    }
+
+                    dataEl.children[1].appendChild(elRes);
+                }
+                {
+                    const elRes = document.createElement('tbody');
+
+                    for(let v of data.doing) {
+                        var elem = document.createElement('tr');
+                        var preElem = [
+                            document.createElement('td'),
+                            document.createElement('td'),
+                            document.createElement('td'),
+
+                            document.createElement('td'),
+                            document.createElement('td'),
+                            document.createElement('td')
+                        ];
+                        preElem[0].innerText = v.name;
+                        preElem[1].innerText = v.groups.join('; ');
+
+                        preElem[2].innerText = parseTime(v.time);
+
+                        preElem[3].appendChild(document.createElement('button'));
+                        preElem[3].children[0].innerText = 'Done';
+                        preElem[3].children[0].onclick = () => toDone(v.hash);
+                        preElem[4].appendChild(document.createElement('button'));
+                        preElem[4].children[0].innerText = 'Delete';
+                        preElem[4].children[0].onclick = () => remove(v.hash);
+                        preElem[5].appendChild(document.createElement('button'));
+                        preElem[5].children[0].innerText = 'More info';
+                        preElem[5].children[0].onclick = () => more(v.hash);
+
+                        elem.append(...preElem);
+
+                        elRes.append(elem);
+                    }
+
+                    dataEl.children[3].appendChild(elRes);
+                }
+                {
+                    const elRes = document.createElement('tbody');
+
+                    for(let v of data.done) {
+                        var elem = document.createElement('tr');
+                        var preElem = [
+                            document.createElement('td'),
+                            document.createElement('td'),
+                            document.createElement('td'),
+
+                            document.createElement('td'),
+                            document.createElement('td'),
+                            document.createElement('td')
+                        ];
+                        preElem[0].innerText = v.name;
+                        preElem[1].innerText = v.groups.join('; ');
+
+                        preElem[2].innerText = parseTime(v.time);
+                        
+                        preElem[3].appendChild(document.createElement('button'));
+                        preElem[3].children[0].innerText = 'Again';
+                        preElem[3].children[0].onclick = () => again(v.hash);
+                        preElem[4].appendChild(document.createElement('button'));
+                        preElem[4].children[0].innerText = 'Delete';
+                        preElem[4].children[0].onclick = () => remove(v.hash);
+                        preElem[5].appendChild(document.createElement('button'));
+                        preElem[5].children[0].innerText = 'More info';
+                        preElem[5].children[0].onclick = () => more(v.hash);
+
+                        elem.append(...preElem);
+
+                        elRes.append(elem);
+                    }
+
+                    dataEl.children[5].appendChild(elRes);
+                }
+            }
+            /**
+             * @returns {string}
+             */
+            function genHash() {
+                function hashOf(length) {
+                    var hash = '';
+                    for(let _ = 0; _ < length; _++) {
+                        hash += '0123456789abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 36)];
+                    }
+                    return hash;
+                }
+                const usedHashes = new Set([
+                    ...(data.todo.map(v=>v.hash)),
+                    ...(data.doing.map(v=>v.hash)),
+                    ...(data.done.map(v=>v.hash))
+                ]);
+                var hashLength = 8;
+                if(usedHashes.size >= 36**8 /* 36 ** 8 */) {
+                    hashLength = Math.ceil(log(usedHashes.size + 1) / 8) * 8;
+                }
+
+                while(true) {
+                    const hash = hashOf(hashLength);
+                    if(!usedHashes.has(hash)) return hash;
+                }
+            }
+
+            function parseTime(time=null) {
+                return time ?
+                    (time.years ? time.years + ' years' : '') +
+                    (time.months ? ' ' + time.months + ' months' : '') +
+                    (time.weeks ? ' ' + time.weeks + ' weeks' : '') +
+                    (time.days ? ' ' + time.days + ' days' : '') +
+                    (time.hours ? ' ' + time.hours + ' hours' : '') +
+                    (time.minutes ? ' ' + time.minutes + ' minutes' : '') +
+                    (time.seconds ? ' ' + time.seconds + ' seconds' : '') : 'Unknown';
+            }
+
+            function saveStorage() {
+                localStorage.todo = JSON.stringify(data);
+            }
+            function getStorage() {
+                try {
+                    return localStorage.todo;
+                } catch {}
+            }
+            function remove(hash) {
+                window.location.hash = '#' + hash + '.' + 'remove';
+                window.location.reload();
+            }
+            function toDoing(hash) {
+                window.location.hash = '#' + hash + '.' + 'doing';
+                window.location.reload();
+            }
+            function toDone(hash) {
+                window.location.hash = '#' + hash + '.' + 'done';
+                window.location.reload();
+            }
+            function again(hash) {
+                window.location.hash = '#' + hash + '.' + 'again';
+                window.location.reload();
+            }
+            function more(hash) {
+                window.location.hash = '#' + hash;
+                window.location.reload();
+            }
+            function showPage(page) {
+                for(let v in pages) {
+                    try {
+                        pages[v].style.display = 'none';
+                    } catch {}
+                }
+
+                try {
+                    pages[page].style.display = 'block';
+                } catch {}
+            }
+            function shareLink(hash,saveDate=false) {
+                const val = {...fromHash(hash)};
+                if(!saveDate) delete val.sys.made;
+                const res = JSON.stringify(val);
+
+                // AI help
+                
+                // 1. Переводим строку с русскими буквами в безопасный байтовый формат UTF-8
+                const bytes = new TextEncoder().encode(res);
+                const binString = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join("");
+
+                // 2. Теперь btoa сработает идеально и не упадет!
+                return window.location.pathname + '#@import.' + btoa(binString);
+            }
+            function fromHash(hash) {
+                return data.todo.find(v=>v.hash===hash) ?? data.doing.find(v=>v.hash===hash) ?? data.done.find(v=>v.hash===hash) ?? null;
+            }
+            function pathFromHash(hash) {
+                // 1. Вычисляем имя списка (ваш отличный рабочий код)
+                const list = data.todo.some(v=>v.hash===hash) ? 'todo' : 
+                             (data.doing.some(v=>v.hash===hash) ? 'doing' : 
+                             (data.done.some(v=>v.hash===hash) ? 'done' : null));
+
+                // 2. Ищем индекс строго внутри этого списка, если он нашелся
+                const index = list ? data[list].findIndex(v => v.hash === hash) : null;
+
+                return [list, index];
+            }
+            /**
+             * @param {Task[]} tasks
+             */
+            function create(...tasks) {
+                data.todo.push(...precreate(...tasks));
+            }
+            /**
+             * @param {Task[]} tasks
+             */
+            function precreate(...tasks) {
+                return tasks.map(v=>({...v, sys: {
+                    made: new Date().toLocaleDateString(undefined,goodLocConfig)
+                }, hash: genHash()}));
+            }
+            function copy(text) {
+                return navigator.clipboard.writeText(text);
+            }
+        </script>
+    </body>
+</html>
