@@ -187,7 +187,7 @@
                             const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0));
                             const jsonStr = new TextDecoder().decode(bytes);
                             const res = JSON.parse(jsonStr);
-                            data.todo.push(res.sys.made ? res : precreate(res));
+                            data.todo.push(...(res.sys.made ? [res] : precreate(res)));
                             break;
                     }
                 }
