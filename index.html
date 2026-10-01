@@ -482,7 +482,7 @@
                 const binString = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join("");
 
                 // 2. Теперь btoa сработает идеально и не упадет!
-                return window.location.pathname + '#@import.' + btoa(binString);
+                return window.location.origin + window.location.pathname + '#@import.' + btoa(binString);
             }
             function fromHash(hash) {
                 return data.todo.find(v=>v.hash===hash) ?? data.doing.find(v=>v.hash===hash) ?? data.done.find(v=>v.hash===hash) ?? null;
