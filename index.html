@@ -3,8 +3,10 @@
     <head>
         <meta charset="utf-8">
         <title>
-            TODO
+            Hash&VeryThinSpace;Todo
         </title>
+        <link rel="icon" href="favicon.svg">
+
         <style>
             #data > table td,
             #data > table th {
@@ -24,17 +26,107 @@
 
                 padding: 3px;
             }
+
+            #task-time {
+                color: blue;
+                width: 55ch;
+            }
+            html:has(#task-time:is(:focus)) label[for=task-time] {
+                /* color: violet; */
+                display: block;
+            }
+            html:has(#task-vir-cat:is(:focus)) label[for=task-vir-cat] {
+                /* color: violet; */
+                display: block;
+            }
+            html:has(#task-groups:is(:focus)) label[for=task-groups] {
+                /* color: violet; */
+                display: block;
+            }
+            label {
+                display: none;
+                position: fixed;
+                &[for=task-time] {
+                    transform: translate(0,-4lh);
+                }
+                &[for=task-vir-cat] {
+                    transform: translate(0,-3lh);
+                }
+                background-color: rgb(229, 255, 255);
+                border: 2px solid black;
+                border-radius: 10px;
+                padding: 5px;
+                color: black;
+                font-weight: bold;
+            }
+
+            #task-add {
+                cursor: pointer;
+                &::after {
+                    content: '►';
+                }
+            }
+            
+            html:has(#task-add-opts.open) #task-add::after {
+                content: '▼';
+            }
+
+            #task-add-opts {
+                display: block; /* Уходим от грида, который дробит элементы */
+                max-height: 0;
+                overflow: hidden;
+                transition: max-height 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+                position: relative;
+
+                /* Создаем невидимую пружину, которая будет сдвигать ВЕСЬ текст разом */
+                &::before {
+                    content: "";
+                    display: block;
+                    margin-top: 0;
+                    transition: margin-top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+                }
+            
+                &.open {
+                    max-height: 300px; /* Задайте с запасом под все инпуты */
+
+                    &::before {
+                        /* При открытии пружина не мешает */
+                        margin-top: 0;
+                    }
+
+                    border: 5px solid black;
+                    padding: 5px;
+                    border-radius: 10px;
+                }
+            
+                /* В закрытом состоянии плавно уводим ВСЕХ потомков вверх */
+                &:not(.open)::before {
+                    /* Задаем большой отрицательный отступ, который утянет ВЕСЬ контент наверх */
+                    margin-top: -300px; 
+                }
+            }
+
+            #task-sys-crtd {
+                width: 55ch;
+            }
+
+            button {
+                border: 2px solid black;
+                border-radius: 5px;
+                background-color: wheat;
+            }
         </style>
     </head>
     <body>
         <div id="home">
             <button onclick="showPage('create')">Create task</button>
+            <button onclick="showPage('sett')">Settings</button>
             <div id="data">
                 <h2>TODO</h2>
                 <table></table>
-                <h2>Doing</h2>
+                <h2>DOING</h2>
                 <table></table>
-                <h2>Done</h2>
+                <h2>DONE</h2>
                 <table></table>
             </div>
         </div>
@@ -45,7 +137,7 @@
                 <span id="-dat-name">name</span><br/>
                 <span id="-dat-groups">groups</span><br/>
                 <span id="-dat-time">time</span><br/>
-                <span id="-dat-made">made</span>
+                <span id="-dat-crtd">created</span>
 
                 <h2>System info</h2>
                 <span id="dat-name">name</span><br/>
@@ -61,11 +153,62 @@
                 <button id="dat-share" onclick="copy(shareLink(window.location.hash.substring(1)))">Copy share link</button>
             </div>
         </div>
-        <!-- <div id="create">
+        <div id="create">
             <h2>Create a task</h2>
-            <span>Name:</span><input id="task-name" placeholder="add new tasks on TODO site"/><br/>
-            <span>Groups:</span>
-        </div> -->
+            <span>Name: </span><input id="task-name" placeholder="add new tasks on TODO site"/><br/>
+            <span>Groups: </span><label for="task-groups">Task groups. Separated by semicolon (';'). Or separated by '; ' (with space). Can end by another semicolon, but it's optional. Example: 'site; todo; HashTodo site;main todo'</label><input id="task-groups" value="site; to\;do; todo; hello, world"/><br/>
+            <span>Time needed: </span><label for="task-time">Time needed to complete task. Can include 'seconds', 'minutes', 'hours', 'days', 'weeks', 'months', 'years'. If blank, time will be unknown.<br/>Format: 'years: 5; months: 3' or without spaces. Can end by ';', but it is optional.</label><input id="task-time" value="minutes: 30" placeholder="empty (will be shown as 'unknown')"/>
+            <br/><br/>
+            <span id="task-add" onclick="addOpts(document.getElementById('task-add-opts').className === 'open')" class="close">Additional options&nbsp;</span>
+            <div id="task-add-opts" class="close">
+                <span>hash: </span><input id="task-hash"/>
+                <br/><br/>
+                <span>sys.created: </span><input id="task-sys-crtd" placeholder="Not recommended to change it. Leave it blank."/>
+                <br/><br/>
+                <span>virtual.category: </span><label for="task-vir-cat">Enumerates the categories to add in. Split by space. Possible groups: 'todo', 'doing', 'done'. Example of using more than one groups: 'todo doing'</label><input id="task-vir-cat" value="todo"/>
+            </div>
+            <br/><br/>
+            <button onclick="createTask({
+                ...precreate({})[0],
+
+                name: document.getElementById('task-name').value,
+                groups: parseGroups(document.getElementById('task-groups').value),
+                time: parseHTime(document.getElementById('task-time').value),
+                ...(document.getElementById('task-hash').value ? {hash: document.getElementById('task-hash').value} : {}),
+                ...(document.getElementById('task-sys-crtd').value ? {created: document.getElementById('task-sys-crtd').value} : {})
+            },document.getElementById('task-vir-cat').value);
+            saveStorage();
+            window.location.reload();">Create</button>  <button onclick="showPage('home')">Cancel</button>
+        </div>
+        <div id="sett">
+            <h2>Data</h2>
+            <button onclick="window.location.hash = '#@erase.'; window.location.reload();">
+                Return to presets
+            </button>  <button onclick="window.location.hash = '#@erase-all.'; window.location.reload();">
+                Erase all tasks, don't make the presets
+            </button>
+            <br/><br/>
+            <a href="https://github.com/mark-sss-coder/todo-site">Github repository</a>
+        </div>
+        <div id="erase">
+            <h2>Return to the presets</h2>
+            <span>Are you sure? All your tasks will be erased forever</span>
+            <button onclick="window.location.hash = ''; window.location.reload();">
+                Cancel
+            </button>  <button onclick="localStorage.todo = ''; window.location.hash = ''; window.location.reload();">
+                Erase
+            </button>
+        </div>
+        <div id="eall">
+            <h2>Erase all data and don't make the presets</h2>
+            <span>Are you sure? All your tasks will be erased forever</span>
+            <button onclick="window.location.hash = ''; window.location.reload();">
+                Cancel
+            </button>  <button onclick='localStorage.todo = `{"todo":[],"doing":[],"done":[]}`; window.location.hash = ""; window.location.reload();'>
+                Erase
+            </button>
+        </div>
+
         <script>
             const log = (x,y=36) => Math.log(x) / Math.log(y);
 
@@ -78,7 +221,10 @@
             const pages = {
                 home: document.getElementById('home'),
                 more: document.getElementById('more'),
-                create: document.getElementById('create')
+                create: document.getElementById('create'),
+                sett: document.getElementById('sett'),
+                erase: document.getElementById('erase'),
+                eall: document.getElementById('eall')
             };
 
 
@@ -86,10 +232,7 @@
              * @typedef {{years?:number,months?:number,weeks?:number,days?:number,hours?:number,minutes?:number,seconds?:number}} Time
              */
             /**
-             * @typedef {{made:string}} SystemTaskInfo
-             */
-            /**
-             * @typedef {{name: string, groups: string[], time: Time|null, hash: string, sys: SystemTaskInfo}} Task
+             * @typedef {{name: string, groups: string[], time: Time|null, hash: string, created: string}} Task
              */
             /**
              * @type {{todo: Task[], doing: Task[], done: Task[]}}
@@ -99,8 +242,7 @@
                 doing: [],
                 done: []
             };
-
-            showPage('home');
+            
 
             (function(){
                 if(getStorage()) {
@@ -113,9 +255,7 @@
                     groups: ['site'],
                     time: null,
                     hash: genHash(),
-                    sys: {
-                        made: new Date().toLocaleDateString(undefined,goodLocConfig)
-                    }
+                    created: new Date().toLocaleDateString(undefined,goodLocConfig)
                 });
 
                 data.doing.push({
@@ -123,18 +263,14 @@
                     groups: ['site'],
                     time: null,
                     hash: genHash(),
-                    sys: {
-                        made: new Date().toLocaleDateString(undefined,goodLocConfig)
-                    }
+                    created: new Date().toLocaleDateString(undefined,goodLocConfig)
                 });
                 data.doing.push({
                     name: 'use TODO site all week',
                     groups: ['site'],
                     time: {weeks:1},
                     hash: genHash(),
-                    sys: {
-                        made: new Date().toLocaleDateString(undefined,goodLocConfig)
-                    }
+                    created: new Date().toLocaleDateString(undefined,goodLocConfig)
                 });
 
                 data.done.push({
@@ -142,9 +278,7 @@
                     groups: ['site'],
                     time: null,
                     hash: genHash(),
-                    sys: {
-                        made: new Date().toLocaleDateString(undefined,goodLocConfig)
-                    }
+                    created: new Date().toLocaleDateString(undefined,goodLocConfig)
                 });
 
                 saveStorage();
@@ -155,31 +289,19 @@
             (function(){
                 if(window.location.hash==='#'||(!window.location.hash)) {
                     showData();
+                    showPage('home');
                     return;
                 }
 
                 
-                if(!window.location.hash.includes('.')) {
-                    const val = fromHash(window.location.hash.substring(1));
-                    
-                    document.getElementById('-dat-name').innerText = 'Name: "' + val.name + '"';
-                    document.getElementById('-dat-groups').innerText = 'Groups: ' + val.groups.join('; ');
-                    document.getElementById('-dat-time').innerText = 'Time: ' + parseTime(val.time).toLowerCase();
-                    document.getElementById('-dat-made').innerText = 'Made: ' + val.sys.made;
-
-                    document.getElementById('dat-name').innerText = 'Name: ' + JSON.stringify(val.name);
-                    document.getElementById('dat-groups').innerText = 'Groups: ' + JSON.stringify(val.groups);
-                    document.getElementById('dat-time').innerText = 'Time: ' + JSON.stringify(val.time);
-                    document.getElementById('dat-hash').innerText = 'Hash: "' + val.hash + '"';
-                    document.getElementById('dat-sys').innerText = 'Task data: ' + JSON.stringify(val);
-
-                    showPage('more');
-                    return;
-                }
-
                 if(window.location.hash[1] == '@') {
                     const command = window.location.hash.substring(2,window.location.hash.indexOf('.'));
-                    const args = window.location.hash.substring(window.location.hash.indexOf('.') + 1).split('.');
+                    var args;
+                    try {
+                        args = window.location.hash.substring(window.location.hash.indexOf('.') + 1).split('.');
+                    } catch {
+                        args = [];
+                    }
 
                     switch(command) {
                         case 'import':
@@ -189,8 +311,39 @@
                             const res = JSON.parse(jsonStr);
                             data.todo.push(...(res.sys.made ? [res] : precreate(res)));
                             break;
+                        case 'erase':
+                            showPage('erase');
+                            break;
+                        case 'erase-all':
+                            showPage('eall');
+                            break;
                     }
+                    return;
                 }
+                
+                if(!window.location.hash.includes('.')) {
+                    try {
+                        const val = fromHash(window.location.hash.substring(1));
+                        
+                        document.getElementById('-dat-name').innerText = 'Name: "' + val.name + '"';
+                        document.getElementById('-dat-groups').innerText = 'Groups: ' + val.groups.join('; ');
+                        document.getElementById('-dat-time').innerText = 'Time: ' + parseTime(val.time).toLowerCase();
+                        document.getElementById('-dat-crtd').innerText = 'Created: ' + val.created;
+
+                        document.getElementById('dat-name').innerText = 'Name: ' + JSON.stringify(val.name);
+                        document.getElementById('dat-groups').innerText = 'Groups: ' + JSON.stringify(val.groups);
+                        document.getElementById('dat-time').innerText = 'Time: ' + JSON.stringify(val.time);
+                        document.getElementById('dat-hash').innerText = 'Hash: "' + val.hash + '"';
+                        document.getElementById('dat-sys').innerText = 'Task data: ' + JSON.stringify(val);
+
+                        showPage('more');
+                    } catch {
+                        window.location.hash = '';
+                        window.location.reload();
+                    }
+                    return;
+                }
+
 
                 const val = fromHash(window.location.hash.substring(
                     1,window.location.hash.indexOf('.')
@@ -472,7 +625,7 @@
             }
             function shareLink(hash,saveDate=false) {
                 const val = {...fromHash(hash)};
-                if(!saveDate) delete val.sys.made;
+                if(!saveDate) delete val.created;
                 const res = JSON.stringify(val);
 
                 // AI help
@@ -508,12 +661,61 @@
              * @param {Task[]} tasks
              */
             function precreate(...tasks) {
-                return tasks.map(v=>({...v, sys: {
-                    made: new Date().toLocaleDateString(undefined,goodLocConfig)
-                }, hash: genHash()}));
+                return tasks.map(v=>({
+                    ...v,
+                    created: new Date().toLocaleDateString(undefined,goodLocConfig),
+                    hash: genHash()
+                }));
             }
             function copy(text) {
                 return navigator.clipboard.writeText(text);
+            }
+            function addOpts(isOpen) {
+                const toChange = document.getElementById('task-add-opts');
+                if(isOpen) {
+                    toChange.className = 'close';
+                    return;
+                }
+                toChange.className = 'open';
+            }
+            function parseGroups(groupStr) {
+                return groupStr.split(/;\s?/g);
+            }
+            /**
+             * @param {string} timeStr
+             * @returns {object}
+             */
+            function parseHTime(timeStr) {
+                timeStr = timeStr.trim();
+                if(!timeStr) return null;
+
+                /**
+                 * @returns {[string,number][]}
+                 */
+                function parse() {
+                    return timeStr.replace(/\s/g,'').split(/;/g).filter(v=>v).map(v=>[v.substring(0,v.indexOf(':')),Number(v.substring(v.indexOf(':') + 1).trim())]);
+                }
+
+                return parse().reduce((v,c)=>{
+                    v[c[0]]=c[1];
+                    return v;
+                },{});
+            }
+
+            /**
+             * @param {Task} taskData
+             * @param {string} groups
+             */
+            function createTask(taskData,groups) {
+                groups = groups.trim();
+                if(!groups.includes(' ')) {
+                    if(groups === 'todo') data.todo.push(taskData);
+                    else if(groups === 'doing') data.doing.push(taskData);
+                    else if(groups === 'done') data.done.push(taskData);
+                } else {
+                    createTask(taskData, groups.substring(0,groups.indexOf(' ')));
+                    createTask(taskData, groups.substring(groups.indexOf(' ') + 1));
+                }
             }
         </script>
     </body>
