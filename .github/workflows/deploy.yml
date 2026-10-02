@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages on Release
 
 on:
   release:
-    types: [published] # Триггер срабатывает только при публикации релиза
+    types: [published] # Запуск только при публикации нового релиза
 
 permissions:
   contents: read
@@ -17,32 +17,18 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps: deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }} # Исправлена опечатка (было двоеточие)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ЕСЛИ У ВАС СТАТИЧЕСКИЙ HTML (без сборщиков):
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.' # Укажите папки, если ваш сайт лежит не в корне (например, './dist')
-
-      # ЕСЛИ У ВАС СБОРЩИК (React, Vue, Vite, Nuxt и т.д.), раскомментируйте шаги ниже:
-      # - name: Set up Node
-      #   uses: actions/setup-node@v4
-      #   with:
-      #     node-node-version: 20
-      #     cache: 'npm'
-      # - name: Install dependencies
-      #   run: npm ci
-      # - name: Build site
-      #   run: npm run build
-      # - name: Upload artifact
-      #   uses: actions/upload-pages-artifact@v3
-      #   with:
-      #     path: './dist' # Папка, куда ваш сборщик складывает готовый сайт
+          # Точка означает, что файлы index.html, стили и скрипты лежат прямо в корне репозитория.
+          # Если они лежат в подпапке (например, src), замените '.' на './src'
+          path: '.' 
 
       - name: Deploy to GitHub Pages
         id: deployment
